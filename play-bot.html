@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chơi với Bot</title>
+    <link rel="stylesheet" href="style.css" />
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+
+        body {
+            background: linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%);
+            font-family: 'Poppins', sans-serif;
+            color: #333;
+            text-align: center;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #3d3dff;
+            font-size: 28px;
+            text-shadow: 1px 1px 2px white;
+            margin-bottom: 15px;
+        }
+
+        #board {
+            display: grid;
+            grid-template-columns: repeat(15, 30px);
+            grid-template-rows: repeat(15, 30px);
+            gap: 1px;
+            margin: 20px auto;
+            width: fit-content;
+        }
+
+        .cell {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            background-color: #fff;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .cell:hover {
+            background-color: #e0f7fa;
+            transform: scale(1.1);
+        }
+
+        .cell[data-symbol="X"] {
+            color: #ff3b30;
+            font-weight: bold;
+            animation: pop 0.2s ease-in-out;
+        }
+
+        .cell[data-symbol="O"] {
+            color: #007aff;
+            font-weight: bold;
+            animation: pop 0.2s ease-in-out;
+        }
+
+        @keyframes pop {
+            0% { transform: scale(0.6); opacity: 0.3; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        button {
+            margin-top: 20px;
+            padding: 12px 25px;
+            font-size: 16px;
+            border: none;
+            background-color: #00b894;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            box-shadow: 0px 3px 5px rgba(0,0,0,0.2);
+        }
+
+        button:hover {
+            background-color: #00cec9;
+            transform: translateY(-2px);
+        }
+
+        #status {
+            font-weight: bold;
+            font-size: 20px;
+            margin-top: 10px;
+            color: #2d3436;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Chế độ: Chơi với Bot</h1>
+        <div id="board"></div>
+        <p id="status"></p>
+        <button onclick="window.location.href='game.html'">Quay lại</button>
+    </div>
+    <script>
+        const size = 15;
+        const board = [];
+        let gameOver = false;
+        let currentPlayer = "X";
+
+        const boardDiv = document.getElementById("board");
+
+        function createBoard() {
+            boardDiv.innerHTML = "";
+            board.length = 0;
+            for (let i = 0; i < size; i++) {
+                const row = [];
+                for (let j = 0; j < size; j++) {
+                    const cell = document.createElement("div");
+                    cell.classList.add("cell");
+                    cell.dataset.row = i;
+                    cell.dataset.col = j;
+                    cell.addEventListener("click", handleClick);
+                    boardDiv.appendChild(cell);
+                    row.push("");
+                }
+                board.push(row);
+            }
+        }
+
+        function handleClick(e) {
+            if (gameOver || currentPlayer !== "X") return;
+            const row = +e.target.dataset.row;
+            const col = +e.target.dataset.col;
+            if (board[row][col] !== "") return;
+
+            makeMove(row, col, "X");
+            if (checkWin(row, col, "X")) {
+                document.getElementById("status").textContent = "Bạn thắng!";
+                gameOver = true;
+                return;
+            }
+            currentPlayer = "O";
+            setTimeout(botMove, 300);
+        }
+
+        function botMove() {
+            const move = findBestMove("O") || getRandomMove();
+            if (!move) return;
+            makeMove(move.row, move.col, "O");
+            if (checkWin(move.row, move.col, "O")) {
+                document.getElementById("status").textContent = "Bot thắng!";
+                gameOver = true;
+                return;
+            }
+            currentPlayer = "X";
+        }
+
+        function makeMove(row, col, symbol) {
+            board[row][col] = symbol;
+            const cell = document.querySelector(`.cell[data-row='${row}'][data-col='${col}']`);
+            if (cell) {
+                cell.textContent = symbol;
+                cell.dataset.symbol = symbol;
+            }
+        }
+
+        function getRandomMove() {
+            const moves = [];
+            for (let i = 0; i < size; i++) {
+                for (let j = 0; j < size; j++) {
+                    if (board[i][j] === "") {
+                        moves.push({ row: i, col: j });
+                    }
+                }
+            }
+            return moves[Math.floor(Math.random() * moves.length)];
+        }
+
+        function findBestMove(botSymbol) {
+            const playerSymbol = botSymbol === "O" ? "X" : "O";
+            // Ưu tiên chặn người chơi có 4, rồi 3 quân liên tiếp
+            for (let priority = 4; priority >= 3; priority--) {
+                for (let i = 0; i < size; i++) {
+                    for (let j = 0; j < size; j++) {
+                        if (board[i][j] === "") {
+                            board[i][j] = playerSymbol;
+                            if (countConsecutive(i, j, playerSymbol) >= priority) {
+                                board[i][j] = "";
+                                return { row: i, col: j };
+                            }
+                            board[i][j] = "";
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        function countConsecutive(row, col, symbol) {
+            const directions = [
+                [0, 1], [1, 0], [1, 1], [1, -1]
+            ];
+            let maxCount = 0;
+            for (let [dx, dy] of directions) {
+                let count = 1;
+                for (let k = 1; k < 5; k++) {
+                    let r = row + dx * k, c = col + dy * k;
+                    if (r < 0 || r >= size || c < 0 || c >= size || board[r][c] !== symbol) break;
+                    count++;
+                }
+                for (let k = 1; k < 5; k++) {
+                    let r = row - dx * k, c = col - dy * k;
+                    if (r < 0 || r >= size || c < 0 || c >= size || board[r][c] !== symbol) break;
+                    count++;
+                }
+                if (count > maxCount) maxCount = count;
+            }
+            return maxCount;
+        }
+
+        function checkWin(row, col, symbol) {
+            const directions = [
+                [0, 1], [1, 0], [1, 1], [1, -1]
+            ];
+            for (const [dx, dy] of directions) {
+                let count = 1;
+                for (let step = 1; step < 5; step++) {
+                    const r = row + dx * step;
+                    const c = col + dy * step;
+                    if (r < 0 || r >= size || c < 0 || c >= size || board[r][c] !== symbol) break;
+                    count++;
+                }
+                for (let step = 1; step < 5; step++) {
+                    const r = row - dx * step;
+                    const c = col - dy * step;
+                    if (r < 0 || r >= size || c < 0 || c >= size || board[r][c] !== symbol) break;
+                    count++;
+                }
+                if (count >= 5) return true;
+            }
+            return false;
+        }
+
+        createBoard();
+    </script>
+</body>
+</html>
